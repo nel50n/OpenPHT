@@ -9,6 +9,7 @@
 #include <boost/assign.hpp>
 #include <boost/lexical_cast.hpp>
 #include <stdio.h>
+#include <algorithm>
 
 #include "Client/PlexTranscoderClientRPi.h"
 #include "plex/PlexUtils.h"
@@ -146,26 +147,24 @@ bool CPlexTranscoderClientRPi::ShouldTranscode(CPlexServerPtr server, const CFil
   if (videoWidth > 1920 || videoHeight > 1080)
   {
     bShouldTranscode = true;
-    ReasonWhy.Format("Video resolution to large: %dx%d", videoWidth, videoHeight);
+    ReasonWhy.Format("Video resolution too large: %dx%d", videoWidth, videoHeight);
   }
   // check if video resolution is to large for hevc
   else if (videoCodec == "hevc" && videoWidth > g_guiSettings.GetInt("plexmediaserver.limithevc"))
   {
     bShouldTranscode = true;
-    ReasonWhy.Format("Video resolution to large: %dx%d", videoWidth, videoHeight);
+    ReasonWhy.Format("HEVC video resolution too large: %dx%d", videoWidth, videoHeight);
   }
   // check if seetings are to transcoding for local media
   else if ( isLocal && localQuality > 0 && localQuality < videoBitRate )
   {
     bShouldTranscode = true;
-    m_maxVideoBitrate = localQuality;
     ReasonWhy.Format("Settings require local transcoding to %d kbps",localQuality);
   }
   // check if seetings are to transcoding for remote media
   else if ( !isLocal && remoteQuality > 0 && remoteQuality < videoBitRate )
   {
     bShouldTranscode = true;
-    m_maxVideoBitrate = remoteQuality;
     ReasonWhy.Format("Settings require remote transcoding to %d kbps",remoteQuality);
   }
   // check if Video Codec is natively supported
@@ -193,9 +192,8 @@ bool CPlexTranscoderClientRPi::ShouldTranscode(CPlexServerPtr server, const CFil
 
   if (bShouldTranscode)
   {
-    // cap the transcode bitrate for qualities
-    if (m_maxVideoBitrate > 20000)
-      m_maxVideoBitrate = 20000;
+    // cap the transcode bitrate for required quality
+    m_maxVideoBitrate = std::min(isLocal ? localQuality : remoteQuality, m_maxVideoBitrate) || m_maxVideoBitrate;
 
     CLog::Log(LOGDEBUG,"RPi ShouldTranscode decided to transcode, Reason : %s",ReasonWhy.c_str());
     CGUIDialogKaiToast::QueueNotification(CGUIDialogKaiToast::Info, "Transcoding", ReasonWhy);
