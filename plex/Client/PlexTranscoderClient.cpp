@@ -33,7 +33,7 @@
 typedef std::map<std::string, std::string> str2str;
 
 static str2str _resolutions = boost::assign::list_of<std::pair<std::string, std::string> >
-  ("64", "220x180") ("96", "220x128") ("208", "284x160") ("320", "420x240") ("720", "576x320") ("1500", "720x480") ("2000", "1024x768")
+  ("64", "220x180") ("96", "220x128") ("208", "284x160") ("320", "420x240") ("720", "576x320") ("1500", "720x480") ("2000", "1280x720")
   ("3000", "1280x720") ("4000", "1280x720") ("8000", "1920x1080") ("10000", "1920x1080") ("12000", "1920x1080") ("20000", "1920x1080")
   (PLEX_TRANSCODER_MAX_BITRATE_STR, "1920x1080");
 
@@ -193,13 +193,13 @@ int CPlexTranscoderClient::SelectATranscoderQuality(CPlexServerPtr server, int c
 
   if (server)
     qualities = server->GetTranscoderBitrates();
-  
+
   CGUIDialogSelect *select = (CGUIDialogSelect*)g_windowManager.GetWindow(WINDOW_DIALOG_SELECT);
   select->Add(g_localizeStrings.Get(42999));
-  
+
   if (currentQuality == 0)
     select->SetSelected(0);
-  
+
   if (server && server->SupportsVideoTranscoding())
   {
     int idx = 1;
@@ -212,11 +212,11 @@ int CPlexTranscoderClient::SelectATranscoderQuality(CPlexServerPtr server, int c
       select->Add(GetPrettyBitrate(qualint));
       if (currentQuality == qualint)
         select->SetSelected(idx);
-      
+
       idx++;
     }
   }
-  
+
   select->DoModal();
   int newqual = select->GetSelectedLabel();
   if (newqual > 0)
@@ -227,7 +227,7 @@ int CPlexTranscoderClient::SelectATranscoderQuality(CPlexServerPtr server, int c
       return currentQuality;
     }
   }
-  
+
   return 0;
 }
 
@@ -260,12 +260,12 @@ bool CPlexTranscoderClient::ShouldTranscode(CPlexServerPtr server, const CFileIt
 
   int bitrate = item.GetProperty("bitrate").asInteger();
   int transcodeSetting;
-  
+
   if (server->GetActiveConnection()->IsLocal())
     transcodeSetting = localBitrate();
   else
     transcodeSetting = remoteBitrate();
-  
+
   if (item.GetProperty("mediatag-videocodec").asString() == "hevc"
     && g_guiSettings.GetInt("plexmediaserver.limithevc") < 7680
     && item.GetProperty("width").asInteger() > g_guiSettings.GetInt("plexmediaserver.limithevc"))
@@ -275,7 +275,7 @@ bool CPlexTranscoderClient::ShouldTranscode(CPlexServerPtr server, const CFileIt
     return transcodeSetting != 0;
   else
     return transcodeSetting ? transcodeSetting < bitrate : false;
-  
+
   return false;
 }
 
@@ -315,7 +315,7 @@ CURL CPlexTranscoderClient::GetTranscodeURL(CPlexServerPtr server, const CFileIt
 
   if (mediaItem->m_selectedMediaPart)
     tURL.SetOption("partIndex", mediaItem->m_selectedMediaPart->GetProperty("partIndex").asString());
-  
+
   std::string bitrate = GetInstance()->GetCurrentBitrate(isLocal);
 
   // if we have no bitrate setting and still want to transcode
@@ -323,9 +323,16 @@ CURL CPlexTranscoderClient::GetTranscodeURL(CPlexServerPtr server, const CFileIt
   if (bitrate == "0")
     bitrate = "20000";
 
+  // tURL.SetOption("audioBoost", "100");
+  tURL.SetOption("maxAudioBitrate", "500");
   tURL.SetOption("maxVideoBitrate", bitrate);
-  tURL.SetOption("videoQuality", _qualities[bitrate]);
-  tURL.SetOption("videoResolution", _resolutions[bitrate]);
+  if (_qualities[bitrate] == "") {
+    tURL.SetOption("videoQuality", "80");
+    tURL.SetOption("videoResolution", "1280x720");
+  } else {
+    tURL.SetOption("videoQuality", _qualities[bitrate]);
+    tURL.SetOption("videoResolution", _resolutions[bitrate]);
+  }
 
   /* PHT can render subtitles itself no need to include them in the transcoded video
    * UNLESS it's a embedded subtitle, we can't extract it from the file or UNLESS the
@@ -339,7 +346,7 @@ CURL CPlexTranscoderClient::GetTranscodeURL(CPlexServerPtr server, const CFileIt
       tURL.SetOption("skipSubtitles", "1");
     }
   }
-  
+
   return tURL;
 }
 

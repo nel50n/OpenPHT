@@ -140,8 +140,10 @@ bool CPlexTranscoderClientRPi::ShouldTranscode(CPlexServerPtr server, const CFil
   CLog::Log(LOGDEBUG,"-%16s : %d", "audioBitRate",audioBitRate);
 
   bool isLocal = server->GetActiveConnection()->IsLocal();
+  int totalBitrate = videoBitRate + audioBitRate;
   int localQuality = localBitrate();
   int remoteQuality = remoteBitrate();
+  int requiredQuality = std::min(isLocal ? localQuality : remoteQuality, m_maxVideoBitrate);
 
   // check if video resolution is to large
   if (videoWidth > 1920 || videoHeight > 1080)
@@ -156,13 +158,13 @@ bool CPlexTranscoderClientRPi::ShouldTranscode(CPlexServerPtr server, const CFil
     ReasonWhy.Format("HEVC video resolution too large: %dx%d", videoWidth, videoHeight);
   }
   // check if seetings are to transcoding for local media
-  else if ( isLocal && localQuality > 0 && localQuality < videoBitRate )
+  else if ( isLocal && localQuality > 0 && localQuality < totalBitrate )
   {
     bShouldTranscode = true;
     ReasonWhy.Format("Settings require local transcoding to %d kbps",localQuality);
   }
   // check if seetings are to transcoding for remote media
-  else if ( !isLocal && remoteQuality > 0 && remoteQuality < videoBitRate )
+  else if ( !isLocal && remoteQuality > 0 && remoteQuality < totalBitrate )
   {
     bShouldTranscode = true;
     ReasonWhy.Format("Settings require remote transcoding to %d kbps",remoteQuality);
@@ -193,7 +195,8 @@ bool CPlexTranscoderClientRPi::ShouldTranscode(CPlexServerPtr server, const CFil
   if (bShouldTranscode)
   {
     // cap the transcode bitrate for required quality
-    m_maxVideoBitrate = std::min(isLocal ? localQuality : remoteQuality, m_maxVideoBitrate) || m_maxVideoBitrate;
+    if (requiredQuality > 0)
+      m_maxVideoBitrate = requiredQuality - std::min(audioBitRate, 500);
 
     CLog::Log(LOGDEBUG,"RPi ShouldTranscode decided to transcode, Reason : %s",ReasonWhy.c_str());
     CGUIDialogKaiToast::QueueNotification(CGUIDialogKaiToast::Info, "Transcoding", ReasonWhy);
