@@ -248,7 +248,7 @@ bool CGUIWindow::Load(TiXmlElement* pRootElement)
       {
         if (strcmpi(pControl->Value(), "control") == 0)
         {
-          LoadControl(pControl, NULL);
+          LoadControl(pControl, NULL, CRect(0, 0, (float)m_coordsRes.iWidth, (float)m_coordsRes.iHeight));
         }
         pControl = pControl->NextSiblingElement();
       }
@@ -270,19 +270,11 @@ bool CGUIWindow::Load(TiXmlElement* pRootElement)
   return true;
 }
 
-void CGUIWindow::LoadControl(TiXmlElement* pControl, CGUIControlGroup *pGroup)
+void CGUIWindow::LoadControl(TiXmlElement* pControl, CGUIControlGroup *pGroup, const CRect &rect)
 {
   // get control type
   CGUIControlFactory factory;
 
-  CRect rect(0, 0, (float)m_coordsRes.iWidth, (float)m_coordsRes.iHeight);
-  if (pGroup)
-  {
-    rect.x1 = pGroup->GetXPosition();
-    rect.y1 = pGroup->GetYPosition();
-    rect.x2 = rect.x1 + pGroup->GetWidth();
-    rect.y2 = rect.y1 + pGroup->GetHeight();
-  }
   CGUIControl* pGUIControl = factory.Create(GetID(), rect, pControl);
   if (pGUIControl)
   {
@@ -305,10 +297,13 @@ void CGUIWindow::LoadControl(TiXmlElement* pControl, CGUIControlGroup *pGroup)
     // if the new control is a group, then add it's controls
     if (pGUIControl->IsGroup())
     {
+      CGUIControlGroup *grp = (CGUIControlGroup *)pGUIControl;
       TiXmlElement *pSubControl = pControl->FirstChildElement("control");
+      CRect grpRect(grp->GetXPosition(), grp->GetYPosition(),
+                    grp->GetXPosition() + grp->GetWidth(), grp->GetYPosition() + grp->GetHeight());
       while (pSubControl)
       {
-        LoadControl(pSubControl, (CGUIControlGroup *)pGUIControl);
+        LoadControl(pSubControl, grp, grpRect);
         pSubControl = pSubControl->NextSiblingElement("control");
       }
     }
@@ -438,7 +433,7 @@ CPoint CGUIWindow::GetPosition() const
   for (unsigned int i = 0; i < m_origins.size(); i++)
   {
     // no condition implies true
-    if (!m_origins[i].condition || g_infoManager.GetBoolValue(m_origins[i].condition))
+    if (!m_origins[i].condition || m_origins[i].condition->Get())
     { // found origin
       return CPoint(m_origins[i].x, m_origins[i].y);
     }
@@ -783,7 +778,7 @@ void CGUIWindow::ClearAll()
   CGUIControlGroup::ClearAll();
   m_windowLoaded = false;
   m_dynamicResourceAlloc = true;
-  m_visibleCondition = 0;
+  m_visibleCondition.reset();
 }
 
 bool CGUIWindow::Initialize()
@@ -960,7 +955,6 @@ void CGUIWindow::SetDefaults()
   m_defaultControl = 0;
   m_posX = m_posY = m_width = m_height = 0;
   m_overlayState = OVERLAY_STATE_PARENT_WINDOW;   // Use parent or previous window's state
-  m_visibleCondition = 0;
   m_previousWindow = WINDOW_INVALID;
   m_animations.clear();
   m_origins.clear();

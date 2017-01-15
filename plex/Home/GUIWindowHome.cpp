@@ -113,7 +113,7 @@ using namespace boost;
 typedef std::pair<CStdString, CPlexSectionFanout*> nameSectionPair;
 
 //////////////////////////////////////////////////////////////////////////////
-CGUIWindowHome::CGUIWindowHome(void) : CGUIWindow(WINDOW_HOME, "Home.xml"), m_globalArt(false), m_lastSelectedItem("Search")
+CGUIWindowHome::CGUIWindowHome(void) : CGUIWindow(WINDOW_HOME, "Home.xml"), m_globalArt(false), m_lastSelectedItem("Search"), m_lastFocusedList(0)
 {
   m_loadType = LOAD_ON_GUI_INIT;
   AddSection("global://art/", CPlexSectionFanout::SECTION_TYPE_GLOBAL_FANART, true);
@@ -150,6 +150,19 @@ bool CGUIWindowHome::OnAction(const CAction &action)
     
     return true;
   }
+
+  if (action.GetID() == ACTION_PLAYER_PLAY)
+  {
+    // save current focused controls
+    m_focusSaver.SaveFocus(this, false);
+
+    CFileItemPtr fileItem = GetCurrentFanoutItem();
+    if (fileItem && fileItem->HasProperty("key"))
+    {
+      m_lastSelectedSubItem = fileItem->GetProperty("key").asString();
+      m_lastFocusedList = GetFocusedControlID();
+    }
+  }
   
   bool ret = g_plexApplication.defaultActionHandler->OnAction(WINDOW_HOME, action, GetCurrentFanoutItem(), CFileItemListPtr());
   
@@ -169,6 +182,7 @@ bool CGUIWindowHome::OnAction(const CAction &action)
         HideAllLists();
         m_lastSelectedItem = GetCurrentItemName();
         m_lastSelectedSubItem.Empty();
+        m_lastFocusedList = 0;
         if (g_plexApplication.timer)
           g_plexApplication.timer->RestartTimeout(200, this);
       }
@@ -191,9 +205,10 @@ bool CGUIWindowHome::OnAction(const CAction &action)
     if (pControl)
     {
       CGUIListItemPtr pItem = pControl->GetListItem(0);
-      if (pItem)
+      if (pItem && pItem->HasProperty("key"))
       {
         m_lastSelectedSubItem = pItem->GetProperty("key").asString();
+        m_lastFocusedList = focusedControl;
       }
     }
   }
@@ -325,10 +340,17 @@ bool CGUIWindowHome::OnPopupMenu()
   if (choice == -1)
     return false;
 
-  if (choice == ACTION_PLEX_GOTO_SHOW || choice == ACTION_PLEX_GOTO_SEASON)
+  if (choice == ACTION_PLEX_GOTO_SHOW || choice == ACTION_PLEX_GOTO_SEASON || choice == ACTION_PLEX_PQ_PLAYFROMHERE)
   {
     // save current focused controls
-    m_focusSaver.SaveFocus(this);
+    m_focusSaver.SaveFocus(this, false);
+
+    CFileItemPtr fileItem = GetCurrentFanoutItem();
+    if (fileItem && fileItem->HasProperty("key"))
+    {
+      m_lastSelectedSubItem = fileItem->GetProperty("key").asString();
+      m_lastFocusedList = GetFocusedControlID();
+    }
   }
 
   if (g_plexApplication.defaultActionHandler->OnAction(WINDOW_HOME, choice, GetCurrentFanoutItem(), CFileItemListPtr()))
@@ -547,12 +569,15 @@ void CGUIWindowHome::OnSectionLoaded(const CGUIMessage& message)
           if(list.Size() > 0)
           {
             int selectedItem = 0;
-            if (!m_lastSelectedSubItem.empty())
+            if (!m_lastSelectedSubItem.empty() && p == m_lastFocusedList)
             {
               for (int i = 0; i < list.Size(); i ++)
               {
                 if (list.Get(i)->GetPath() == m_lastSelectedSubItem)
+                {
                   selectedItem = i;
+                  break;
+                }
               }
             }
 
@@ -593,7 +618,7 @@ bool CGUIWindowHome::OnClick(const CGUIMessage& message)
     {
       g_plexApplication.playQueueManager->playId(PLEX_MEDIA_TYPE_VIDEO, playQueueItemId);
     }
-    else if (iAction == ACTION_SELECT_ITEM && PlexUtils::CurrentSkinHasPreplay() &&
+    else if (iAction == ACTION_SELECT_ITEM && PlexUtils::CurrentSkinHasPreplay(fileItem->GetPlexDirectoryType()) &&
         fileItem->GetPlexDirectoryType() != PLEX_DIR_TYPE_PHOTO)
     {
       OpenItem(fileItem);
@@ -681,7 +706,7 @@ void CGUIWindowHome::OpenItem(CFileItemPtr item)
   }
   
   // save current focused controls
-  m_focusSaver.SaveFocus(this);
+  m_focusSaver.SaveFocus(this, false);
 
   CStdString url = m_navHelper.navigateToItem(item, CURL(), GetID());
   if (!url.empty())

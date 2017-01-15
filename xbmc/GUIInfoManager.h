@@ -32,6 +32,7 @@
 #include "inttypes.h"
 #include "XBDateTime.h"
 #include "utils/Observer.h"
+#include "interfaces/info/InfoBool.h"
 #include "interfaces/info/SkinVariable.h"
 #include "cores/IPlayer.h"
 
@@ -53,7 +54,6 @@ class CGUIListItem;
 class CDateTime;
 namespace INFO
 {
-  class InfoBool;
   class InfoSingle;
 }
 
@@ -385,11 +385,22 @@ namespace INFO
 #define VISUALISATION_ENABLED       403
 
 #define STRING_IS_EMPTY             410
-#define STRING_COMPARE              411
-#define STRING_STR                  412
-#define INTEGER_GREATER_THAN        413
-#define STRING_STR_LEFT             414
-#define STRING_STR_RIGHT            415
+#define STRING_IS_EQUAL             411
+#define STRING_STARTS_WITH          412
+#define STRING_ENDS_WITH            413
+#define STRING_CONTAINS             414
+// deprecated begin
+// should be removed before L*** v18
+#define STRING_COMPARE              415
+#define STRING_STR                  416
+#define STRING_STR_LEFT             418
+#define STRING_STR_RIGHT            419
+// deprecated end
+#define INTEGER_IS_EQUAL            450
+#define INTEGER_GREATER_THAN        451
+#define INTEGER_GREATER_OR_EQUAL    452
+#define INTEGER_LESS_THAN           453
+#define INTEGER_LESS_OR_EQUAL       454
 
 #define SKIN_BOOL                   600
 #define SKIN_STRING                 601
@@ -658,8 +669,8 @@ namespace INFO
 #define MUSICPLAYER_PROPERTY_OFFSET 800 // 100 id's reserved for musicplayer props.
 #define LISTITEM_ART_OFFSET         900 // 100 id's reserved for listitem art.
 
-#define CONDITIONAL_LABEL_START       LISTITEM_END + 1 // 36001
-#define CONDITIONAL_LABEL_END         37000
+#define CONDITIONAL_LABEL_START       (LISTITEM_END + 1) // 36201
+#define CONDITIONAL_LABEL_END         38000
 
 // the multiple information vector
 #define MULTI_INFO_START              40000
@@ -743,24 +754,16 @@ public:
    \param expression the boolean condition or expression
    \param context the context window
    \return an identifier used to reference this expression
-
-   \sa GetBoolValue
    */
-  unsigned int Register(const CStdString &expression, int context = 0);
-
-  /*! \brief Get a previously registered boolean expression's value
-   Checks the cache and evaluates the boolean expression if required.
-   \sa Register
-   */
-  bool GetBoolValue(unsigned int expression, const CGUIListItem *item = NULL);
+  INFO::InfoPtr Register(const CStdString &expression, int context = 0);
 
   /*! \brief Evaluate a boolean expression
    \param expression the expression to evaluate
    \param context the context in which to evaluate the expression (currently windows)
    \return the value of the evaluated expression.
-   \sa Register, GetBoolValue
+   \sa Register
    */
-  bool EvaluateBool(const CStdString &expression, int context = 0);
+  bool EvaluateBool(const CStdString &expression, int context = 0, const CGUIListItemPtr &item = nullptr);
 
   int TranslateString(const CStdString &strCondition);
 
@@ -868,7 +871,7 @@ public:
   CStdString GetSkinVariableString(int info, bool preferImage = false, const CGUIListItem *item=NULL);
 
   /// \brief iterates through boolean conditions and compares their stored values to current values. Returns true if any condition changed value.
-  bool ConditionsChangedValues(const std::map<int, bool>& map);
+  bool ConditionsChangedValues(const std::map<INFO::InfoPtr, bool>& map);
 
   /* PLEX */
   bool GetSlideshowShowDescription();
@@ -880,6 +883,7 @@ public:
 protected:
   friend class INFO::InfoSingle;
   bool GetBool(int condition, int contextWindow = 0, const CGUIListItem *item=NULL);
+  int TranslateSingleString(const CStdString &strCondition, bool &listItemDependent);
 
   // routines for window retrieval
   bool CheckWindowCondition(CGUIWindow *window, int condition) const;
@@ -973,9 +977,8 @@ protected:
   int m_nextWindowID;
   int m_prevWindowID;
 
-  std::vector<INFO::InfoBool*> m_bools;
+  std::vector<INFO::InfoPtr> m_bools;
   std::vector<INFO::CSkinVariableString> m_skinVariableStrings;
-  unsigned int m_updateTime;
 
   int m_libraryHasMusic;
   int m_libraryHasMovies;

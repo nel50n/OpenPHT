@@ -22,7 +22,6 @@
 #include "GUIWindowManager.h"
 #include "GUILabelControl.h"
 #include "GUIAudioManager.h"
-#include "GUIInfoManager.h"
 #include "threads/SingleLock.h"
 #include "utils/TimeUtils.h"
 #include "Application.h"
@@ -136,7 +135,7 @@ void CGUIDialog::UpdateVisibility()
 {
   if (m_visibleCondition)
   {
-    if (g_infoManager.GetBoolValue(m_visibleCondition))
+    if (m_visibleCondition->Get())
       Show();
     else
       Close();
@@ -166,6 +165,8 @@ void CGUIDialog::DoModal_Internal(int iWindowID /*= WINDOW_INVALID */, const CSt
   //maybe we should have a critical section per window instead??
   CSingleLock lock(g_graphicsContext);
 
+  if (m_active && !m_closing && !IsAnimating(ANIM_TYPE_WINDOW_CLOSE)) return;
+
   if (!g_windowManager.Initialized())
     return; // don't do anything
 
@@ -176,7 +177,7 @@ void CGUIDialog::DoModal_Internal(int iWindowID /*= WINDOW_INVALID */, const CSt
   // the main rendering thread (this should really be handled via
   // a thread message though IMO)
   m_active = true;
-  g_windowManager.RouteToWindow(this);
+  g_windowManager.RegisterDialog(this);
 
   // active this window...
   CGUIMessage msg(GUI_MSG_WINDOW_INIT, 0, 0, WINDOW_INVALID, iWindowID);
@@ -213,7 +214,7 @@ void CGUIDialog::Show_Internal()
   // a thread message though IMO)
   m_active = true;
   m_closing = false;
-  g_windowManager.AddModeless(this);
+  g_windowManager.RegisterDialog(this);
 
   // active this window...
   CGUIMessage msg(GUI_MSG_WINDOW_INIT, 0, 0);

@@ -591,6 +591,8 @@ bool CGUIPlexMediaWindow::OnAction(const CAction &action)
       action.GetID() >= KEY_ASCII || // KEY_ASCII means that we letterjumped.
       action.GetID() == ACTION_FIRST_PAGE ||
       action.GetID() == ACTION_LAST_PAGE ||
+      action.GetID() == ACTION_MOUSE_LEFT_CLICK ||
+      action.GetID() == ACTION_MOUSE_DRAG ||
       action.GetID() == ACTION_MOUSE_WHEEL_UP ||
       action.GetID() == ACTION_MOUSE_WHEEL_DOWN)
   {
@@ -797,7 +799,7 @@ bool CGUIPlexMediaWindow::OnSelect(int iItem)
 
   if (!item->m_bIsFolder)
   {
-    if (!PlexUtils::CurrentSkinHasPreplay() || item->GetProperty("isSynthesized").asBoolean())
+    if (!PlexUtils::CurrentSkinHasPreplay(item->GetPlexDirectoryType()) || item->GetProperty("isSynthesized").asBoolean())
       return OnPlayMedia(iItem);
 
       if (item->GetPlexDirectoryType() == PLEX_DIR_TYPE_TRACK ||
@@ -1172,7 +1174,8 @@ CURL CGUIPlexMediaWindow::GetRealDirectoryUrl(const CStdString& url_)
       if (sectionFilter)
         url = sectionFilter->addFiltersToUrl(url);
       else
-        PlexUtils::AppendPathToURL(url, "all");
+        if (!url.HasOption("type"))
+          PlexUtils::AppendPathToURL(url, "all");
     }
 
     return url;

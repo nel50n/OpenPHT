@@ -57,6 +57,7 @@
 #include "utils/SeekHandler.h"
 #include "URL.h"
 #include "addons/Skin.h"
+#include "boost/make_shared.hpp"
 #include "cores/DataCacheCore.h"
 
 // stuff for current song
@@ -83,6 +84,7 @@
 #include "video/VideoDatabase.h"
 #include "cores/IPlayer.h"
 #include "cores/AudioEngine/Utils/AEUtil.h"
+#include "interfaces/info/InfoExpression.h"
 
 /* PLEX */
 #include "ThumbLoader.h"
@@ -126,7 +128,6 @@ CGUIInfoManager::CGUIInfoManager(void) :
   m_currentSlide = new CFileItem;
   m_frameCounter = 0;
   m_lastFPSTime = 0;
-  m_updateTime = 1;
   m_playerShowTime = false;
   m_playerShowCodec = false;
   m_playerShowInfo = false;
@@ -185,6 +186,18 @@ typedef struct
   const char *str;
   int  val;
 } infomap;
+
+const infomap string_bools[] =   {{ "isempty",          STRING_IS_EMPTY },
+                                  { "isequal",          STRING_IS_EQUAL },
+                                  { "startswith",       STRING_STARTS_WITH },
+                                  { "endswith",         STRING_ENDS_WITH },
+                                  { "contains",         STRING_CONTAINS }};
+
+const infomap integer_bools[] =  {{ "isequal",          INTEGER_IS_EQUAL },
+                                  { "isgreater",        INTEGER_GREATER_THAN },
+                                  { "isgreaterorequal", INTEGER_GREATER_OR_EQUAL },
+                                  { "isless",           INTEGER_LESS_THAN },
+                                  { "islessorequal",    INTEGER_LESS_OR_EQUAL }};
 
 const infomap player_labels[] =  {{ "hasmedia",         PLAYER_HAS_MEDIA },           // bools from here
                                   /* PLEX */
@@ -817,6 +830,18 @@ void CGUIInfoManager::SplitInfoString(const CStdString &infoString, vector<Prope
 /// efficient retrieval of data.
 int CGUIInfoManager::TranslateSingleString(const CStdString &strCondition)
 {
+  bool listItemDependent;
+  return TranslateSingleString(strCondition, listItemDependent);
+}
+
+int CGUIInfoManager::TranslateSingleString(const CStdString &strCondition, bool &listItemDependent)
+{
+  /* We need to disable caching in INFO::InfoBool::Get if either of the following are true:
+   *  1. if condition is between LISTITEM_START and LISTITEM_END
+   *  2. if condition is STRING_IS_EMPTY, STRING_COMPARE, STRING_STR, INTEGER_GREATER_THAN and the
+   *     corresponding label is between LISTITEM_START and LISTITEM_END
+   *  This is achieved by setting the bool pointed at by listItemDependent, either here or in a recursive call
+   */
   // trim whitespaces
   CStdString strTest = strCondition;
   strTest.TrimLeft(" \t\r\n");
@@ -829,8 +854,6 @@ int CGUIInfoManager::TranslateSingleString(const CStdString &strCondition)
     return 0;
 
   const Property &cat = info[0];
-
-
   if (info.size() == 1)
   { // single category
     if (cat.name == "false" || cat.name == "no" || cat.name == "off")
@@ -838,11 +861,11 @@ int CGUIInfoManager::TranslateSingleString(const CStdString &strCondition)
     else if (cat.name == "true" || cat.name == "yes" || cat.name == "on")
       return SYSTEM_ALWAYS_TRUE;
     if (cat.name == "isempty" && cat.num_params() == 1)
-      return AddMultiInfo(GUIInfo(STRING_IS_EMPTY, TranslateSingleString(cat.param())));
+      return AddMultiInfo(GUIInfo(STRING_IS_EMPTY, TranslateSingleString(cat.param(), listItemDependent)));
     else if (cat.name == "stringcompare" && cat.num_params() == 2)
     {
-      int info = TranslateSingleString(cat.param(0));
-      int info2 = TranslateSingleString(cat.param(1));
+      int info = TranslateSingleString(cat.param(0), listItemDependent);
+      int info2 = TranslateSingleString(cat.param(1), listItemDependent);
       if (info2 > 0)
         return AddMultiInfo(GUIInfo(STRING_COMPARE, info, -info2));
       // pipe our original string through the localize parsing then make it lowercase (picks up $LBRACKET etc.)
@@ -852,13 +875,13 @@ int CGUIInfoManager::TranslateSingleString(const CStdString &strCondition)
     }
     else if (cat.name == "integergreaterthan" && cat.num_params() == 2)
     {
-      int info = TranslateSingleString(cat.param(0));
+      int info = TranslateSingleString(cat.param(0), listItemDependent);
       int compareInt = atoi(cat.param(1).c_str());
       return AddMultiInfo(GUIInfo(INTEGER_GREATER_THAN, info, compareInt));
     }
     else if (cat.name == "substring" && cat.num_params() >= 2)
     {
-      int info = TranslateSingleString(cat.param(0));
+      int info = TranslateSingleString(cat.param(0), listItemDependent);
       CStdString label = CGUIInfoLabel::GetLabel(cat.param(1)).ToLower();
       int compareString = ConditionalStringParameter(label);
       if (cat.num_params() > 2)
@@ -874,7 +897,47 @@ int CGUIInfoManager::TranslateSingleString(const CStdString &strCondition)
   else if (info.size() == 2)
   {
     const Property &prop = info[1];
-    if (cat.name == "player")
+    if (cat.name == "string")
+    {
+      if (prop.name == "isempty")
+      {
+        return AddMultiInfo(GUIInfo(STRING_IS_EMPTY, TranslateSingleString(prop.param(), listItemDependent)));
+      }
+      else if (prop.num_params() == 2)
+      {
+        for (size_t i = 0; i < sizeof(string_bools) / sizeof(infomap); i++)
+        {
+          if (prop.name == string_bools[i].str)
+          {
+            int data1 = TranslateSingleString(prop.param(0), listItemDependent);
+            // pipe our original string through the localize parsing then make it lowercase (picks up $LBRACKET etc.)
+            std::string label = CGUIInfoLabel::GetLabel(prop.param(1));
+            StringUtils::ToLower(label);
+            // 'true', 'false', 'yes', 'no' are valid strings, do not resolve them to SYSTEM_ALWAYS_TRUE or SYSTEM_ALWAYS_FALSE
+            if (label != "true" && label != "false" && label != "yes" && label != "no")
+            {
+              int data2 = TranslateSingleString(prop.param(1), listItemDependent);
+              if (data2 > 0)
+                return AddMultiInfo(GUIInfo(string_bools[i].val, data1, -data2));
+            }
+            return AddMultiInfo(GUIInfo(string_bools[i].val, data1, ConditionalStringParameter(label)));
+          }
+        }
+      }
+    }
+    if (cat.name == "integer")
+    {
+      for (size_t i = 0; i < sizeof(integer_bools) / sizeof(infomap); i++)
+      {
+        if (prop.name == integer_bools[i].str)
+        {
+          int data1 = TranslateSingleString(prop.param(0), listItemDependent);
+          int data2 = atoi(prop.param(1).c_str());
+          return AddMultiInfo(GUIInfo(integer_bools[i].val, data1, data2));
+        }
+      }
+    }
+    else if (cat.name == "player")
     {
       for (size_t i = 0; i < sizeof(player_labels) / sizeof(infomap); i++)
       {
@@ -977,11 +1040,12 @@ int CGUIInfoManager::TranslateSingleString(const CStdString &strCondition)
         {
           if (param == "rasplex") return SYSTEM_ISRASPLEX;
           else if (param == "openelec") return SYSTEM_ISOPENELEC;
+          else if (param == "openpht") return SYSTEM_ISOPENPHT;
         }
         /* END PLEX */
         else if (prop.name == "addontitle")
         {
-          int infoLabel = TranslateSingleString(param);
+          int infoLabel = TranslateSingleString(param, listItemDependent);
           if (infoLabel > 0)
             return AddMultiInfo(GUIInfo(SYSTEM_ADDON_TITLE, infoLabel, 0));
           CStdString label = CGUIInfoLabel::GetLabel(param).ToLower();
@@ -989,7 +1053,7 @@ int CGUIInfoManager::TranslateSingleString(const CStdString &strCondition)
         }
         else if (prop.name == "addonicon")
         {
-          int infoLabel = TranslateSingleString(param);
+          int infoLabel = TranslateSingleString(param, listItemDependent);
           if (infoLabel > 0)
             return AddMultiInfo(GUIInfo(SYSTEM_ADDON_ICON, infoLabel, 0));
           CStdString label = CGUIInfoLabel::GetLabel(param).ToLower();
@@ -1132,17 +1196,18 @@ int CGUIInfoManager::TranslateSingleString(const CStdString &strCondition)
     {
       int offset = atoi(cat.param().c_str());
       int ret = TranslateListItem(prop);
+      if (ret)
+        listItemDependent = true;
 
       /* PLEX */
       if (ret == LISTITEM_COMPOSITE_IMAGE)
         return AddMultiInfo(GUIInfo(ret, ConditionalStringParameter(prop.param())));
       /* END PLEX */
 
+      if (ret)
+        listItemDependent = true;
       if (ret == LISTITEM_TYPE || ret == LISTITEM_STATUS)
-      {
         return AddMultiInfo(GUIInfo(ret, 0, offset, INFOFLAG_LISTITEM_WRAP, ConditionalStringParameter(prop.param())));
-      }
-
       if (offset || ret == LISTITEM_ISSELECTED || ret == LISTITEM_ISPLAYING || ret == LISTITEM_IS_FOLDER)
         return AddMultiInfo(GUIInfo(ret, 0, offset, INFOFLAG_LISTITEM_WRAP));
       return ret;
@@ -1151,6 +1216,8 @@ int CGUIInfoManager::TranslateSingleString(const CStdString &strCondition)
     {
       int offset = atoi(cat.param().c_str());
       int ret = TranslateListItem(prop);
+      if (ret)
+        listItemDependent = true;
       if (offset || ret == LISTITEM_ISSELECTED || ret == LISTITEM_ISPLAYING || ret == LISTITEM_IS_FOLDER)
         return AddMultiInfo(GUIInfo(ret, 0, offset, INFOFLAG_LISTITEM_POSITION));
       return ret;
@@ -1159,6 +1226,8 @@ int CGUIInfoManager::TranslateSingleString(const CStdString &strCondition)
     {
       int offset = atoi(cat.param().c_str());
       int ret = TranslateListItem(prop);
+      if (ret)
+        listItemDependent = true;
       if (offset || ret == LISTITEM_ISSELECTED || ret == LISTITEM_ISPLAYING || ret == LISTITEM_IS_FOLDER)
         return AddMultiInfo(GUIInfo(ret, 0, offset));
       return ret;
@@ -1215,10 +1284,8 @@ int CGUIInfoManager::TranslateSingleString(const CStdString &strCondition)
         { // TODO: The parameter for these should really be on the first not the second property
           if (prop.param().Find("xml") >= 0)
             return AddMultiInfo(GUIInfo(window_bools[i].val, 0, ConditionalStringParameter(prop.param())));
-          int winID = prop.param().IsEmpty() ? 0 : CButtonTranslator::TranslateWindow(prop.param());
-          if (winID != WINDOW_INVALID)
-            return AddMultiInfo(GUIInfo(window_bools[i].val, winID, 0));
-          return 0;
+          int winID = prop.param().IsEmpty() ? WINDOW_INVALID : CButtonTranslator::TranslateWindow(prop.param());
+          return winID != WINDOW_INVALID ? AddMultiInfo(GUIInfo(window_bools[i].val, winID, 0)) : window_bools[i].val;
         }
       }
     }
@@ -1286,18 +1353,24 @@ int CGUIInfoManager::TranslateSingleString(const CStdString &strCondition)
         return AddMultiInfo(GUIInfo(value, 1, position));
       }
     }
-   else if (info[0].name == "container")
+    else if (info[0].name == "container")
     {
       int id = atoi(info[0].param().c_str());
       int offset = atoi(info[1].param().c_str());
       if (info[1].name == "listitemnowrap")
+      {
+        listItemDependent = true;
         return AddMultiInfo(GUIInfo(TranslateListItem(info[2]), id, offset));
+      }
       else if (info[1].name == "listitemposition")
+      {
+        listItemDependent = true;
         return AddMultiInfo(GUIInfo(TranslateListItem(info[2]), id, offset, INFOFLAG_LISTITEM_POSITION));
+      }
       else if (info[1].name == "listitem")
       {
+        listItemDependent = true;
         int ret = TranslateListItem(info[2]);
-
         if (ret == LISTITEM_TYPE || ret == LISTITEM_STATUS)
           return AddMultiInfo(GUIInfo(ret, id, offset, INFOFLAG_LISTITEM_WRAP, ConditionalStringParameter(info[2].param())));
         else
@@ -2204,64 +2277,44 @@ bool CGUIInfoManager::GetInt(int &value, int info, int contextWindow, const CGUI
   return false;
 }
 
-unsigned int CGUIInfoManager::Register(const CStdString &expression, int context)
+// functor for comparison InfoPtr's
+struct InfoBoolFinder
+{
+  InfoBoolFinder(const std::string &expression, int context) : m_bool(expression, context) {};
+  bool operator() (const InfoPtr &right) const { return m_bool == *right; };
+  InfoBool m_bool;
+};
+
+INFO::InfoPtr CGUIInfoManager::Register(const CStdString &expression, int context)
 {
   CStdString condition(CGUIInfoLabel::ReplaceLocalize(expression));
   condition.TrimLeft(" \t\r\n");
   condition.TrimRight(" \t\r\n");
 
   if (condition.IsEmpty())
-    return 0;
+    return INFO::InfoPtr();
 
   CSingleLock lock(m_critInfo);
   // do we have the boolean expression already registered?
-  InfoBool test(condition, context);
-  for (unsigned int i = 0; i < m_bools.size(); ++i)
-  {
-    if (*m_bools[i] == test)
-      return i+1;
-  }
+  vector<InfoPtr>::const_iterator i = find_if(m_bools.begin(), m_bools.end(), InfoBoolFinder(condition, context));
+  if (i != m_bools.end())
+    return *i;
 
   if (condition.find_first_of("|+[]!") != condition.npos)
-    m_bools.push_back(new InfoExpression(condition, context));
+    m_bools.push_back(boost::make_shared<InfoExpression>(condition, context));
   else
-    m_bools.push_back(new InfoSingle(condition, context));
+    m_bools.push_back(boost::make_shared<InfoSingle>(condition, context));
 
-  return m_bools.size();
+  return m_bools.back();
 }
 
-bool CGUIInfoManager::EvaluateBool(const CStdString &expression, int contextWindow)
+bool CGUIInfoManager::EvaluateBool(const CStdString &expression, int contextWindow /* = 0 */, const CGUIListItemPtr &item /* = NULL */)
 {
   bool result = false;
-  unsigned int info = Register(expression, contextWindow);
+  INFO::InfoPtr info = Register(expression, contextWindow);
   if (info)
-    result = GetBoolValue(info);
+    result = info->Get(item.get());
   return result;
-}
-
-/*
- TODO: what to do with item-based infobools...
- these crop up:
- 1. if condition is between LISTITEM_START and LISTITEM_END
- 2. if condition is STRING_IS_EMPTY, STRING_COMPARE, STRING_STR, INTEGER_GREATER_THAN and the
-    corresponding label is between LISTITEM_START and LISTITEM_END
-
- In both cases they shouldn't be in our cache as they depend on items outside of our control atm.
-
- We only pass a listitem object in for controls inside a listitemlayout, so I think it's probably OK
- to not cache these, as they're "pushed" out anyway.
-
- The problem is how do we avoid these?  The only thing we have to go on is the expression here, so I
- guess what we have to do is call through via Update.  One thing we don't handle, however, is that the
- majority of conditions (even inside lists) don't depend on the listitem at all.
-
- Advantage is that we know this at creation time I think, so could perhaps signal it in IsDirty()?
- */
-bool CGUIInfoManager::GetBoolValue(unsigned int expression, const CGUIListItem *item)
-{
-  if (expression && --expression < m_bools.size())
-    return m_bools[expression]->Get(m_updateTime, item);
-  return false;
 }
 
 // checks the condition and returns it as necessary.  Currently used
@@ -2558,6 +2611,10 @@ bool CGUIInfoManager::GetBool(int condition1, int contextWindow, const CGUIListI
 #else
     bReturn = false;
 #endif
+  }
+  else if (condition == SYSTEM_ISOPENPHT)
+  {
+    bReturn = true;
   }
   else if (condition == VIDEOPLAYER_HASNEXT)
   {
@@ -2903,7 +2960,8 @@ bool CGUIInfoManager::GetMultiInfoBool(const GUIInfo &info, int contextWindow, c
         else
           bReturn = GetImage(info.GetData1(), contextWindow).IsEmpty();
         break;
-      case STRING_COMPARE:
+      case STRING_COMPARE: // STRING_COMPARE is deprecated - should be removed before L*** v18
+      case STRING_IS_EQUAL:
         {
           CStdString compare;
           if (info.GetData2() < 0) // info labels are stored with negative numbers
@@ -2924,12 +2982,14 @@ bool CGUIInfoManager::GetMultiInfoBool(const GUIInfo &info, int contextWindow, c
             bReturn = GetImage(info.GetData1(), contextWindow).Equals(compare);
         }
         break;
+      case INTEGER_IS_EQUAL:
       case INTEGER_GREATER_THAN:
+      case INTEGER_GREATER_OR_EQUAL:
+      case INTEGER_LESS_THAN:
+      case INTEGER_LESS_OR_EQUAL:
         {
           int integer;
-          if (GetInt(integer, info.GetData1(), contextWindow, item))
-            bReturn = integer > info.GetData2();
-          else
+          if (!GetInt(integer, info.GetData1(), contextWindow, item))
           {
             CStdString value;
 
@@ -2940,16 +3000,31 @@ bool CGUIInfoManager::GetMultiInfoBool(const GUIInfo &info, int contextWindow, c
 
             // Handle the case when a value contains time separator (:). This makes IntegerGreaterThan
             // useful for Player.Time* members without adding a separate set of members returning time in seconds
-            if ( value.find_first_of( ':' ) != value.npos )
-              bReturn = StringUtils::TimeStringToSeconds( value ) > info.GetData2();
+            if (value.find_first_of( ':' ) != value.npos)
+              integer = StringUtils::TimeStringToSeconds(value);
             else
-              bReturn = atoi( value.c_str() ) > info.GetData2();
+              integer = atoi(value.c_str());
           }
+
+          // compare
+          if (condition == INTEGER_IS_EQUAL)
+            bReturn = integer == info.GetData2();
+          else if (condition == INTEGER_GREATER_THAN)
+            bReturn = integer > info.GetData2();
+          else if (condition == INTEGER_GREATER_OR_EQUAL)
+            bReturn = integer >= info.GetData2();
+          else if (condition == INTEGER_LESS_THAN)
+            bReturn = integer < info.GetData2();
+          else if (condition == INTEGER_LESS_OR_EQUAL)
+            bReturn = integer <= info.GetData2();
         }
         break;
-      case STRING_STR:
-      case STRING_STR_LEFT:
-      case STRING_STR_RIGHT:
+      case STRING_STR:          // STRING_STR is deprecated - should be removed before L*** v18
+      case STRING_STR_LEFT:     // STRING_STR_LEFT is deprecated - should be removed before L*** v18
+      case STRING_STR_RIGHT:    // STRING_STR_RIGHT is deprecated - should be removed before L*** v18
+      case STRING_STARTS_WITH:
+      case STRING_ENDS_WITH:
+      case STRING_CONTAINS:
         {
           CStdString compare = m_stringParameters[info.GetData2()];
           // our compare string is already in lowercase, so lower case our label as well
@@ -2959,9 +3034,9 @@ bool CGUIInfoManager::GetMultiInfoBool(const GUIInfo &info, int contextWindow, c
             label = GetItemImage((const CFileItem *)item, info.GetData1()).ToLower();
           else
             label = GetImage(info.GetData1(), contextWindow).ToLower();
-          if (condition == STRING_STR_LEFT)
+          if (condition == STRING_STR_LEFT || condition == STRING_STARTS_WITH)
             bReturn = label.Find(compare) == 0;
-          else if (condition == STRING_STR_RIGHT)
+          else if (condition == STRING_STR_RIGHT || condition == STRING_ENDS_WITH)
             bReturn = label.Find(compare) == (int)(label.size()-compare.size());
           else
             bReturn = label.Find(compare) > -1;
@@ -3347,18 +3422,23 @@ CStdString CGUIInfoManager::GetMultiInfoLabel(const GUIInfo &info, int contextWi
   if (info.m_info >= LISTITEM_START && info.m_info <= LISTITEM_END)
   {
     CFileItemPtr item;
-    CGUIWindow *window = NULL;
+    CGUIWindow *window = GetWindowWithCondition(contextWindow, 0);
 
     int data1 = info.GetData1();
     if (!data1) // No container specified, so we lookup the current view container
     {
-      window = GetWindowWithCondition(contextWindow, WINDOW_CONDITION_HAS_LIST_ITEMS);
-      if (window && window->IsMediaWindow())
-        data1 = ((CGUIMediaWindow*)(window))->GetViewContainerID();
+      if (window)
+      {
+        if (window->IsMediaWindow())
+          data1 = ((CGUIMediaWindow*)(window))->GetViewContainerID();
+        else
+        {
+          auto control = window->GetFocusedControl();
+          if (control && control->IsContainer())
+            data1 = control->GetID();
+        }
+      }
     }
-
-    if (!window) // If we don't have a window already (from lookup above), get one
-      window = GetWindowWithCondition(contextWindow, 0);
 
     if (window)
     {
@@ -4695,11 +4775,22 @@ CStdString CGUIInfoManager::GetAudioScrobblerLabel(int item)
 void CGUIInfoManager::Clear()
 {
   CSingleLock lock(m_critInfo);
-  for (unsigned int i = 0; i < m_bools.size(); ++i)
-    delete m_bools[i];
-  m_bools.clear();
-
   m_skinVariableStrings.clear();
+
+  /*
+    Erase any info bools that are unused. We do this repeatedly as each run
+    will remove those bools that are no longer dependencies of other bools
+    in the vector.
+   */
+  vector<InfoPtr>::iterator i = remove_if(m_bools.begin(), m_bools.end(), std::mem_fun_ref(&InfoPtr::unique));
+  while (i != m_bools.end())
+  {
+    m_bools.erase(i, m_bools.end());
+    i = remove_if(m_bools.begin(), m_bools.end(), std::mem_fun_ref(&InfoPtr::unique));
+  }
+  // log which ones are used - they should all be gone by now
+  for (vector<InfoPtr>::const_iterator i = m_bools.begin(); i != m_bools.end(); ++i)
+    CLog::Log(LOGDEBUG, "Infobool '%s' still used by %u instances", (*i)->GetExpression().c_str(), (unsigned int) i->use_count());
 }
 
 void CGUIInfoManager::UpdateFPS()
@@ -4862,6 +4953,7 @@ CStdString CGUIInfoManager::GetItemLabel(const CFileItem *item, int info, CStdSt
       CStdString args = m_stringParameters[multiInfo.GetData1()];
       return PlexUtils::GetCompositeImageUrl(*item, args);
     }
+    return GetMultiInfoLabel(multiInfo, 0, fallback);
   }
   /* END PLEX */
 
@@ -5747,7 +5839,10 @@ void CGUIInfoManager::ResetCache()
 {
   // reset any animation triggers as well
   m_containerMoves.clear();
-  m_updateTime++;
+  // mark our infobools as dirty
+  CSingleLock lock(m_critInfo);
+  for (vector<InfoPtr>::iterator i = m_bools.begin(); i != m_bools.end(); ++i)
+    (*i)->SetDirty();
 }
 
 // Called from tuxbox service thread to update current status
@@ -6050,6 +6145,8 @@ int CGUIInfoManager::RegisterSkinVariableString(const CSkinVariableString* info)
   CSingleLock lock(m_critInfo);
   m_skinVariableStrings.push_back(*info);
   delete info;
+  if (m_skinVariableStrings.size() > CONDITIONAL_LABEL_END - CONDITIONAL_LABEL_START + 1)
+    CLog::Log(LOGERROR, "too many skin variables registered:%d limit:%d", m_skinVariableStrings.size(), CONDITIONAL_LABEL_END - CONDITIONAL_LABEL_START + 1);
   return CONDITIONAL_LABEL_START + m_skinVariableStrings.size() - 1;
 }
 
@@ -6075,11 +6172,11 @@ CStdString CGUIInfoManager::GetSkinVariableString(int info,
   return "";
 }
 
-bool CGUIInfoManager::ConditionsChangedValues(const std::map<int, bool>& map)
+bool CGUIInfoManager::ConditionsChangedValues(const std::map<INFO::InfoPtr, bool>& map)
 {
-  for (std::map<int, bool>::const_iterator it = map.begin() ; it != map.end() ; it++)
+  for (std::map<INFO::InfoPtr, bool>::const_iterator it = map.begin() ; it != map.end() ; it++)
   {
-    if (GetBoolValue(it->first) != it->second)
+    if (it->first->Get() != it->second)
       return true;
   }
   return false;

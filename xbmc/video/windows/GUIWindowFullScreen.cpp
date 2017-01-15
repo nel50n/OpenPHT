@@ -184,8 +184,6 @@ bool CGUIWindowFullScreen::OnAction(const CAction &action)
 
   case ACTION_SHOW_OSD_TIME:
     m_bShowCurrentTime = !m_bShowCurrentTime;
-    if(!m_bShowCurrentTime)
-      g_infoManager.SetDisplayAfterSeek(0); //Force display off
     g_infoManager.SetShowTime(m_bShowCurrentTime);
     return true;
     break;
@@ -317,7 +315,7 @@ void CGUIWindowFullScreen::OnWindowLoaded()
   CGUIProgressControl* pProgress = (CGUIProgressControl*)GetControl(CONTROL_PROGRESS);
   if(pProgress)
   {
-    if( pProgress->GetInfo() == 0 || pProgress->GetVisibleCondition() == 0)
+    if( pProgress->GetInfo() == 0 || !pProgress->HasVisibleCondition())
     {
       pProgress->SetInfo(PLAYER_PROGRESS);
       pProgress->SetVisibleCondition("player.displayafterseek");
@@ -326,14 +324,14 @@ void CGUIWindowFullScreen::OnWindowLoaded()
   }
 
   CGUILabelControl* pLabel = (CGUILabelControl*)GetControl(LABEL_BUFFERING);
-  if(pLabel && pLabel->GetVisibleCondition() == 0)
+  if(pLabel && !pLabel->HasVisibleCondition())
   {
     pLabel->SetVisibleCondition("player.caching");
     pLabel->SetVisible(true);
   }
 
   pLabel = (CGUILabelControl*)GetControl(LABEL_CURRENT_TIME);
-  if(pLabel && pLabel->GetVisibleCondition() == 0)
+  if(pLabel && !pLabel->HasVisibleCondition())
   {
     pLabel->SetVisibleCondition("player.displayafterseek");
     pLabel->SetVisible(true);
@@ -458,29 +456,8 @@ bool CGUIWindowFullScreen::OnMessage(CGUIMessage& message)
     }
   case GUI_MSG_WINDOW_DEINIT:
     {
-      CGUIDialog *pDialog = (CGUIDialog *)g_windowManager.GetWindow(WINDOW_DIALOG_OSD_TELETEXT);
-      if (pDialog) pDialog->Close(true);
-      pDialog = (CGUIDialog *)g_windowManager.GetWindow(WINDOW_DIALOG_SLIDER);
-      if (pDialog) pDialog->Close(true);
-      pDialog = (CGUIDialog *)g_windowManager.GetWindow(WINDOW_DIALOG_VIDEO_OSD);
-      if (pDialog) pDialog->Close(true);
-      pDialog = (CGUIDialog *)g_windowManager.GetWindow(WINDOW_DIALOG_FULLSCREEN_INFO);
-      if (pDialog) pDialog->Close(true);
-      pDialog = (CGUIDialog *)g_windowManager.GetWindow(WINDOW_DIALOG_PVR_OSD_CHANNELS);
-      if (pDialog) pDialog->Close(true);
-      pDialog = (CGUIDialog *)g_windowManager.GetWindow(WINDOW_DIALOG_PVR_OSD_GUIDE);
-      if (pDialog) pDialog->Close(true);
-      pDialog = (CGUIDialog *)g_windowManager.GetWindow(WINDOW_DIALOG_PVR_OSD_DIRECTOR);
-      if (pDialog) pDialog->Close(true);
-      pDialog = (CGUIDialog *)g_windowManager.GetWindow(WINDOW_DIALOG_PVR_OSD_CUTTER);
-      if (pDialog) pDialog->Close(true);
-
-      /* PLEX */
-      pDialog = (CGUIDialog*)g_windowManager.GetWindow(WINDOW_DIALOG_PLEX_AUDIO_PICKER);
-      if (pDialog) pDialog->Close(true);
-      pDialog = (CGUIDialog*)g_windowManager.GetWindow(WINDOW_DIALOG_PLEX_SUBTITLE_PICKER);
-      if (pDialog) pDialog->Close(true);
-      /* END PLEX */
+      // close all active modal dialogs
+      g_windowManager.CloseInternalModalDialogs(true);
 
       CGUIWindow::OnMessage(message);
 
@@ -590,17 +567,8 @@ void CGUIWindowFullScreen::FrameMove()
 {
   if (g_application.m_pPlayer->GetPlaySpeed() != 1)
     g_infoManager.SetDisplayAfterSeek();
-  if (m_bShowCurrentTime)
-    g_infoManager.SetDisplayAfterSeek();
 
   if (!g_application.m_pPlayer->HasPlayer()) return;
-
-#ifndef __PLEX__
-  if( g_application.m_pPlayer->IsCaching() )
-  {
-    g_infoManager.SetDisplayAfterSeek(0); //Make sure these stuff aren't visible now
-  }
-#endif
 
   //------------------------
   m_showCodec.Update();

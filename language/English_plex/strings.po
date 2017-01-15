@@ -1013,8 +1013,8 @@ msgid "Show shared libraries in menu"
 msgstr "Show shared libraries in menu"
 
 msgctxt "#52210"
-msgid "Show queue and recommendations"
-msgstr "Show queue and recommendations"
+msgid "Show watch later and recommended"
+msgstr "Show watch later and recommended"
 
 msgctxt "#52211"
 msgid "Automatic sign in"
@@ -1039,6 +1039,26 @@ msgstr "Disable server side scaling of fanart"
 msgctxt "#52216"
 msgid "Disable server side scaling of photos"
 msgstr "Disable server side scaling of photos"
+
+msgctxt "#52217"
+msgid "Show watched in watch later and recommended"
+msgstr "Show watched in watch later and recommended"
+
+msgctxt "#52218"
+msgid "Stack TV Shows in recently added"
+msgstr "Stack TV Shows in recently added"
+
+msgctxt "#52220"
+msgid "Disable preplay screen for movies"
+msgstr "Disable preplay screen for movies"
+
+msgctxt "#52221"
+msgid "Disable preplay screen for episodes"
+msgstr "Disable preplay screen for episodes"
+
+msgctxt "#52222"
+msgid "Disable preplay screen for clips"
+msgstr "Disable preplay screen for clips"
 
 msgctxt "#52300"
 msgid "Media Server went away"

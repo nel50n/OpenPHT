@@ -299,14 +299,6 @@ void CGUISettings::Initialize()
   SetString("myplex.status", g_localizeStrings.Get(isSignedIn ? 44011 : 44010));
   AddString(myPlex, "myplex.signin", isSignedIn ? 44002 : 44100, "", BUTTON_CONTROL_STANDARD);
   AddBool(myPlex, "myplex.searchsharedlibraries", 13143, true);
-  AddBool(myPlex, "myplex.enablequeueandrec", 52210, true);
-  AddBool(myPlex, "myplex.sharedsectionsonhome", 52209, false);
-  AddBool(myPlex, "myplex.hidecloudsync", 52505, false);
-  AddBool(myPlex, "myplex.recentlywatched", 52212, false);
-  AddBool(myPlex, "myplex.hidechannels", 52213, false);
-  AddBool(myPlex, "myplex.disablepreplay", 52214, false);
-  AddBool(myPlex, "myplex.disablefanarttranscode", 52215, false);
-  AddBool(myPlex, "myplex.disablepicturetranscode", 52216, false);
   AddBool(myPlex, "myplex.automaticlogin", 52211, false);
 
 
@@ -334,7 +326,7 @@ void CGUISettings::Initialize()
 #if defined(TARGET_DARWIN_IOS)
   AddBool(NULL, "input.enablemouse", 21369, false);
 #else
-  AddBool(NULL, "input.enablemouse", 21369, false);
+  AddBool(in, "input.enablemouse", 21369, false);
 #endif
 #if defined(HAS_SDL_JOYSTICK)
   AddBool(NULL, "input.enablejoystick", 35100, true);
@@ -511,7 +503,7 @@ void CGUISettings::Initialize()
 #ifdef HAS_EVENT_SERVER
   //CSettingsCategory* srvEvent = AddCategory(SETTINGS_SERVICE, "remotecontrol", 790);
   AddBool(NULL,  "services.esenabled",         791, true);
-  AddString(NULL,"services.esport",            792, "9778", EDIT_CONTROL_NUMBER_INPUT, false, 792);
+  AddString(NULL,"services.esport",            792, "9777", EDIT_CONTROL_NUMBER_INPUT, false, 792);
   AddInt(NULL,   "services.esportrange",       793, 10, 1, 1, 100, SPIN_CONTROL_INT);
   AddInt(NULL,   "services.esmaxclients",      797, 20, 1, 1, 100, SPIN_CONTROL_INT);
   AddBool(NULL,  "services.esallinterfaces",   794, false);
@@ -1051,6 +1043,21 @@ void CGUISettings::Initialize()
   AddBool(NULL, "lookandfeel.enablerssfeeds",13305,  false);
   AddString(NULL, "lookandfeel.rssedit", 21450, "", BUTTON_CONTROL_STANDARD);
 
+  // Plex "Appearance" General
+  CSettingsCategory* glaf = AddCategory(SETTINGS_APPEARANCE, "myplex", 128);
+  AddBool(glaf, "myplex.sharedsectionsonhome", 52209, false);
+  AddBool(glaf, "myplex.recentlywatched", 52212, false);
+  AddBool(glaf, "myplex.recentlystacked", 52218, false);
+  AddBool(glaf, "myplex.enablequeueandrec", 52210, true);
+  AddBool(glaf, "myplex.queuewatched", 52217, false);
+  AddBool(glaf, "myplex.hidechannels", 52213, false);
+  AddBool(glaf, "myplex.hidecloudsync", 52505, false);
+  AddBool(NULL, "myplex.disablepreplay", 52214, false);
+  AddBool(glaf, "myplex.disablepreplaymovie", 52220, false);
+  AddBool(glaf, "myplex.disablepreplayepisode", 52221, false);
+  AddBool(glaf, "myplex.disablepreplayclip", 52222, false);
+  AddBool(glaf, "myplex.disablefanarttranscode", 52215, false);
+  AddBool(glaf, "myplex.disablepicturetranscode", 52216, false);
 
   // Appearance/International
   CSettingsCategory* loc = AddCategory(SETTINGS_APPEARANCE, "locale", 14090);

@@ -77,18 +77,26 @@
 		<colordiffuse>FF000000</colordiffuse>
 	</include>
 	<include name="ArrowBlack">
+		<width>14</width>
+		<height>30</height>
 		<texture>arrow-big.png</texture>
 		<colordiffuse>FF000000</colordiffuse>
 	</include>
 	<include name="ArrowBlackLeft">
+		<width>14</width>
+		<height>30</height>
 		<texture flipx="true">arrow-big.png</texture>
 		<colordiffuse>FF000000</colordiffuse>
 	</include>
 	<include name="ArrowBlackUp">
+		<width>30</width>
+		<height>14</height>
 		<texture>arrow-big-up.png</texture>
 		<colordiffuse>FF000000</colordiffuse>
 	</include>
 	<include name="ArrowBlackDown">
+		<width>30</width>
+		<height>14</height>
 		<texture flipy="true">arrow-big-up.png</texture>
 		<colordiffuse>FF000000</colordiffuse>
 	</include>
@@ -519,12 +527,12 @@
 	<!-- scroll letter offset -->
 	<include name="scrollOffset">
 		<control type="group">
-			<visible>Container.Scrolling</visible>
+			<visible>Container.Scrolling | Control.hasFocus(1111)</visible>
 			<animation effect="slide" time="500" delay="400" tween="circle" easing="out" start="0,300" end="0,0">Visible</animation>
 			<animation effect="slide" time="100" tween="circle" easing="in" start="0,0" end="0,300">Hidden</animation>
 			<control type="group">
 				<posy>610</posy>
-				<posx>190r</posx>
+				<posx>140r</posx>
 				<control type="image">
 					<description>Background</description>
 					<width>100</width>
@@ -544,9 +552,7 @@
 					<include>DialogArrow</include>
 				</control>
 				<control type="label">
-					<posx>0</posx>
-					<posy>10</posy>
-					<height>60</height>
+					<height>85</height>
 					<width>100</width>
 					<aligny>center</aligny>
 					<align>center</align>
@@ -595,5 +601,15 @@
 			<animation effect="fade" start="100" end="0" time="800" condition="true">WindowOpen</animation>
 			<animation effect="fade" start="0" end="100" time="100" condition="true">WindowClose</animation>
 		</control>
+	</include>
+	<!-- Mouse Trigger -->
+	<include name="Mouse_Trigger">
+		<label>-</label>
+		<font>-</font>
+		<onfocus>-</onfocus>
+		<onclick>-</onclick>
+		<texturenofocus>-</texturenofocus>
+		<texturefocus>-</texturefocus>
+		<visible>system.getbool(input.enablemouse)</visible>
 	</include>
 </includes>

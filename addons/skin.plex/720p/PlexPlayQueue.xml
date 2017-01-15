@@ -6,6 +6,11 @@
 	<onload>Skin.SetString(SectionType,playqueue)</onload>
 	<onunload>Skin.Reset(SectionType)</onunload>
 	<controls>
+		<!-- Scrollbar -->
+		<control type="group">
+			<posx>8</posx>
+			<include>Scrollbar</include>
+		</control>
 		<!-- music play queue -->
 		<control type="group">
 			<visible>Container.PlexContent(songs) | [Container.PlexContent(channel) + System.PlexPlayQueue(Music)]</visible>
@@ -59,7 +64,9 @@
 						<scrolltime>200</scrolltime>
 						<onleft condition="!Player.HasAudio">998</onleft>
 						<onleft condition="Player.HasAudio">300</onleft>
-						<onright>54</onright>
+						<!--<onright>54</onright>-->
+						<onright>1111</onright>
+						<pagecontrol>1111</pagecontrol>
 						<onup>54</onup>
 						<ondown>54</ondown>
 						<itemlayout height="49" width="520">
@@ -129,6 +136,8 @@
 							<control type="image">
 								<posx>0</posx>
 								<posy>10</posy>
+								<width>16</width>
+								<height>32</height>
 								<texture>arrow-big.png</texture>
 								<colordiffuse>orange</colordiffuse>
 								<visible>ListItem.IsPlaying</visible>
@@ -207,6 +216,8 @@
 							<control type="image">
 								<posx>0</posx>
 								<posy>10</posy>
+								<width>16</width>
+								<height>32</height>
 								<texture>arrow-big.png</texture>
 								<colordiffuse>orange</colordiffuse>
 								<visible>ListItem.IsPlaying</visible>
@@ -854,8 +865,14 @@
 								<!-- previous -->
 								<control type="group">
 									<posy>13</posy>
-									<posx>220</posx>
+									<posx>182</posx>
 									<include>OSDPreviousButton</include>
+								</control>
+								<!-- rewind -->
+								<control type="group">
+									<posy>13</posy>
+									<posx>222</posx>
+									<include>OSDRewindButton</include>
 								</control>
 								<!-- play/pause -->
 								<control type="group">
@@ -863,10 +880,16 @@
 									<posx>262</posx>
 									<include>OSDPlayButton</include>
 								</control>
-								<!-- next -->
+								<!-- forward -->
 								<control type="group">
 									<posy>13</posy>
 									<posx>302</posx>
+									<include>OSDForwardButton</include>
+								</control>
+								<!-- next -->
+								<control type="group">
+									<posy>13</posy>
+									<posx>342</posx>
 									<include>OSDNextButton</include>
 								</control>
 								<!-- stop -->

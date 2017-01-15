@@ -175,7 +175,7 @@ CPlexRemoteResponse CPlexHTTPRemoteHandler::showDetails(const ArgMap &arguments)
     return CPlexRemoteResponse(500, "Need key argument");
   }
 
-  if (!PlexUtils::CurrentSkinHasPreplay() ||
+  if (!PlexUtils::CurrentSkinHasPreplay(PLEX_DIR_TYPE_UNKNOWN) ||
       g_application.IsPlayingFullScreenVideo() ||
       g_application.IsVisualizerActive() ||
       g_windowManager.GetActiveWindow() == WINDOW_SLIDESHOW)
@@ -194,10 +194,11 @@ CPlexRemoteResponse CPlexHTTPRemoteHandler::showDetails(const ArgMap &arguments)
 
       /* FIXME: the pre-play for Shows and Epsiodes are not really looking
        * great yet, so let's skip them for now */
-      if (item->GetPlexDirectoryType() == PLEX_DIR_TYPE_ALBUM ||
+      if (PlexUtils::CurrentSkinHasPreplay(item->GetPlexDirectoryType()) &&
+         (item->GetPlexDirectoryType() == PLEX_DIR_TYPE_ALBUM ||
           item->GetPlexDirectoryType() == PLEX_DIR_TYPE_MOVIE ||
           item->GetPlexDirectoryType() == PLEX_DIR_TYPE_ARTIST ||
-          item->GetPlexDirectoryType() == PLEX_DIR_TYPE_EPISODE)
+          item->GetPlexDirectoryType() == PLEX_DIR_TYPE_EPISODE))
       {
         CPlexNavigationHelper nav;
         nav.navigateToItem(item, CURL(), WINDOW_HOME, true);
@@ -243,6 +244,8 @@ CPlexRemoteResponse CPlexHTTPRemoteHandler::updateCommandID(const HTTPRequest &r
   catch (boost::bad_lexical_cast) { return CPlexRemoteResponse(500, "commandID is not a integer!"); }
 
   std::string uuid = CWebServer::GetRequestHeaderValue(request.connection, MHD_HEADER_KIND, "X-Plex-Client-Identifier");
+  if (uuid.empty())
+    uuid = CWebServer::GetRequestHeaderValue(request.connection, MHD_GET_ARGUMENT_KIND, "X-Plex-Client-Identifier");
   if (uuid.empty())
   {
     CLog::Log(LOGWARNING, "CPlexHTTPRemoteHandler::updateCommandID subscriber didn't set X-Plex-Client-Identifier");
@@ -343,12 +346,16 @@ CPlexRemoteSubscriberPtr CPlexHTTPRemoteHandler::getSubFromRequest(const HTTPReq
   
   uuid = CWebServer::GetRequestHeaderValue(request.connection, MHD_HEADER_KIND, "X-Plex-Client-Identifier");
   if (uuid.empty())
+    uuid = CWebServer::GetRequestHeaderValue(request.connection, MHD_GET_ARGUMENT_KIND, "X-Plex-Client-Identifier");
+  if (uuid.empty())
   {
     CLog::Log(LOGWARNING, "CPlexHTTPRemoteHandler::subscribe subscriber didn't set X-Plex-Client-Identifier");
     return CPlexRemoteSubscriberPtr();
   }
 
   name = CWebServer::GetRequestHeaderValue(request.connection, MHD_HEADER_KIND, "X-Plex-Device-Name");
+  if (name.empty())
+    name = CWebServer::GetRequestHeaderValue(request.connection, MHD_GET_ARGUMENT_KIND, "X-Plex-Device-Name");
   if (name.empty())
   {
     CLog::Log(LOGWARNING, "CPlexHTTPRemoteHandler::subscribe subscriber didn't set X-Plex-Device-Name");
@@ -389,7 +396,11 @@ CPlexRemoteResponse CPlexHTTPRemoteHandler::poll(const HTTPRequest &request, con
   bool wait = false;
 
   std::string uuid = CWebServer::GetRequestHeaderValue(request.connection, MHD_HEADER_KIND, "X-Plex-Client-Identifier");
+  if (uuid.empty())
+    uuid = CWebServer::GetRequestHeaderValue(request.connection, MHD_GET_ARGUMENT_KIND, "X-Plex-Client-Identifier");
   std::string name = CWebServer::GetRequestHeaderValue(request.connection, MHD_HEADER_KIND, "X-Plex-Device-Name");
+  if (name.empty())
+    name = CWebServer::GetRequestHeaderValue(request.connection, MHD_GET_ARGUMENT_KIND, "X-Plex-Device-Name");
   int commandID = -1;
 
   if (arguments.find("commandID") != arguments.end())

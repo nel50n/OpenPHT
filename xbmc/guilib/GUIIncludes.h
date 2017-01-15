@@ -24,6 +24,7 @@
 
 #include <map>
 #include <set>
+#include "interfaces/info/InfoBool.h"
 
 // forward definitions
 class TiXmlElement;
@@ -47,21 +48,37 @@ public:
    "bar" from the include file "foo".
    \param node an XML Element - all child elements are traversed.
    */
-  void ResolveIncludes(TiXmlElement *node, std::map<int, bool>* xmlIncludeConditions = NULL);
+  void ResolveIncludes(TiXmlElement *node, std::map<INFO::InfoPtr, bool>* xmlIncludeConditions = NULL);
   const INFO::CSkinVariableString* CreateSkinVariable(const CStdString& name, int context);
 
 private:
-  void ResolveIncludesForNode(TiXmlElement *node, std::map<int, bool>* xmlIncludeConditions = NULL);
+  enum ResolveParamsResult
+  {
+    NO_PARAMS_FOUND,
+    PARAMS_RESOLVED,
+    SINGLE_UNDEFINED_PARAM_RESOLVED
+  };
+
+  void ResolveIncludesForNode(TiXmlElement *node, std::map<INFO::InfoPtr, bool>* xmlIncludeConditions = NULL);
+  using Params = std::map<std::string, std::string>;
+  static bool GetParameters(const TiXmlElement *include, const char *valueAttribute, Params& params);
+  static void ResolveParametersForNode(TiXmlElement *node, const Params& params);
+  static ResolveParamsResult ResolveParameters(const CStdString& strInput, CStdString& strOutput, const Params& params);
   CStdString ResolveConstant(const CStdString &constant) const;
+  CStdString ResolveExpressions(const CStdString &expression) const;
   bool HasIncludeFile(const CStdString &includeFile) const;
-  std::map<CStdString, TiXmlElement> m_includes;
+  std::map<std::string, std::pair<TiXmlElement, Params>> m_includes;
   std::map<CStdString, TiXmlElement> m_defaults;
   std::map<CStdString, TiXmlElement> m_skinvariables;
   std::map<CStdString, CStdString> m_constants;
+  std::map<std::string, std::string> m_expressions;
   std::vector<CStdString> m_files;
   typedef std::vector<CStdString>::const_iterator iFiles;
 
   std::set<std::string> m_constantAttributes;
   std::set<std::string> m_constantNodes;
+
+  std::set<std::string> m_expressionAttributes;
+  std::set<std::string> m_expressionNodes;
 };
 

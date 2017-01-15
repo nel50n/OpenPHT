@@ -75,7 +75,7 @@ class CPlexHTTPRemoteHandler;
 class CGUIDialogCache;
 class PlexApplication;
 typedef boost::shared_ptr<PlexApplication> PlexApplicationPtr;
-#include "plex/CrashReporter/Breakpad.h"
+class BreakpadScope;
 /* END PLEX */
 
 class CSeekHandler;
@@ -282,7 +282,7 @@ public:
   void UpdateLibraries();
   void CheckMusicPlaylist();
 
-  bool ExecuteXBMCAction(std::string action);
+  bool ExecuteXBMCAction(std::string action, const CGUIListItemPtr &item = NULL);
 
   static bool OnEvent(XBMC_Event& newEvent);
 

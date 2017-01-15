@@ -85,10 +85,11 @@ void CPlexSectionFanout::Refresh(bool force)
   {
     if (!g_advancedSettings.m_bHideFanouts)
     {
-      PlexUtils::AppendPathToURL(trueUrl, "queue/unwatched");
+      bool useAll = g_guiSettings.GetBool("myplex.queuewatched");
+      PlexUtils::AppendPathToURL(trueUrl, useAll ? "queue/all" : "queue/unwatched");
       m_outstandingJobs.push_back(LoadSection(trueUrl, CONTENT_LIST_QUEUE));
       trueUrl = CURL(m_url);
-      PlexUtils::AppendPathToURL(trueUrl, "recommendations/unwatched");
+      PlexUtils::AppendPathToURL(trueUrl, useAll ? "recommendations/all" : "recommendations/unwatched");
       m_outstandingJobs.push_back(LoadSection(trueUrl, CONTENT_LIST_RECOMMENDATIONS));
     }
   }
@@ -117,13 +118,11 @@ void CPlexSectionFanout::Refresh(bool force)
       if (m_sectionType != SECTION_TYPE_ALBUM && !g_guiSettings.GetBool("myplex.recentlywatched"))
         trueUrl.SetOption("unwatched", "1");
 
-#if 0
-      if (m_sectionType == SECTION_TYPE_SHOW)
+      if (m_sectionType == SECTION_TYPE_SHOW && g_guiSettings.GetBool("myplex.recentlystacked"))
       {
         trueUrl.SetOption("stack", "1");
         trueUrl.SetOption("includeParentData", "1");
       }
-#endif
 
       PlexUtils::AppendPathToURL(trueUrl, "recentlyAdded");
 

@@ -500,7 +500,7 @@ CFileItemPtr CPlexDirectory::NewPlexElement(XML_ELEMENT *element, const CFileIte
     newItem->SetProperty("type", "clip");
   }
 
-  if (newItem->GetPlexDirectoryType() == PLEX_DIR_TYPE_CLIP && newItem->HasProperty("url"))
+  if (newItem->GetPlexDirectoryType() == PLEX_DIR_TYPE_CLIP && newItem->HasProperty("url") && baseUrl.GetHostName() == "myplex")
     newItem->SetProperty("key", "plexserver://best/system/services/url/lookup?url=" + CURL::Encode(newItem->GetProperty("url").asString()));
 
   if (newItem->HasProperty("key"))
@@ -643,9 +643,23 @@ bool CPlexDirectory::ReadMediaContainer(XML_ELEMENT* root, CFileItemList& mediaC
       /* See https://github.com/plexinc/plex/issues/737 for a discussion around this workaround */
       mediaContainer.SetPlexDirectoryType(PLEX_DIR_TYPE_PHOTO);
     }
+    else if (boost::starts_with(m_url.GetFileName(), "library/sections/") &&
+             mediaContainer.Size() > 0 &&
+             mediaContainer.Get(0)->GetPlexDirectoryType() == PLEX_DIR_TYPE_CLIP &&
+             mediaContainer.GetProperty("viewGroup").asString() == "photo")
+    {
+      mediaContainer.SetPlexDirectoryType(PLEX_DIR_TYPE_PHOTO);
+    }
     else if (boost::starts_with(m_url.GetFileName(), "library/metadata/") &&
              mediaContainer.Size() > 0 &&
              mediaContainer.Get(0)->GetPlexDirectoryType() == PLEX_DIR_TYPE_PHOTO)
+    {
+      mediaContainer.SetPlexDirectoryType(PLEX_DIR_TYPE_PHOTOALBUM);
+    }
+    else if (boost::starts_with(m_url.GetFileName(), "library/metadata/") &&
+             mediaContainer.Size() > 0 &&
+             mediaContainer.Get(0)->GetPlexDirectoryType() == PLEX_DIR_TYPE_CLIP &&
+             mediaContainer.GetProperty("viewGroup").asString() == "photo")
     {
       mediaContainer.SetPlexDirectoryType(PLEX_DIR_TYPE_PHOTOALBUM);
     }

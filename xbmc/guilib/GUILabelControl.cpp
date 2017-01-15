@@ -34,8 +34,6 @@ CGUILabelControl::CGUILabelControl(int parentID, int controlID, float posX, floa
   ControlType = GUICONTROL_LABEL;
   m_startHighlight = m_endHighlight = 0;
   m_minWidth = 0;
-  if ((labelInfo.align & XBFONT_RIGHT) && m_width)
-    m_posX -= m_width;
 }
 
 CGUILabelControl::~CGUILabelControl(void)
@@ -103,7 +101,7 @@ void CGUILabelControl::UpdateInfo(const CGUIListItem *item)
 
   bool changed = false;
 
-  changed |= m_label.SetMaxRect(m_posX, m_posY, m_width, m_height);
+  changed |= m_label.SetMaxRect(m_posX, m_posY, GetWidth(), m_height);
   changed |= m_label.SetText(label);
 
   if (changed)
@@ -115,7 +113,7 @@ void CGUILabelControl::Process(unsigned int currentTime, CDirtyRegionList &dirty
   bool changed = false;
 
   changed |= m_label.SetColor(IsDisabled() ? CGUILabel::COLOR_DISABLED : CGUILabel::COLOR_TEXT);
-  changed |= m_label.SetMaxRect(m_posX, m_posY, m_width, m_height);
+  changed |= m_label.SetMaxRect(m_posX, m_posY, GetWidth(), m_height);
   changed |= m_label.Process(currentTime);
 
   if (changed)
@@ -143,11 +141,17 @@ bool CGUILabelControl::CanFocus() const
 
 void CGUILabelControl::SetLabel(const string &strLabel)
 {
-  m_infoLabel.SetLabel(strLabel, "", GetParentID());
-  if (m_iCursorPos > (int)strLabel.size())
-    m_iCursorPos = strLabel.size();
+  // NOTE: this optimization handles fixed labels only (i.e. not info labels).
+  // One way it might be extended to all labels would be for GUIInfoLabel ( or here )
+  // to store the label prior to parsing, and then compare that against what you're setting.
+  if (m_infoLabel.GetLabel(GetParentID(), false) != strLabel)
+  {
+    m_infoLabel.SetLabel(strLabel, "", GetParentID());
+    if (m_iCursorPos > (int)strLabel.size())
+      m_iCursorPos = strLabel.size();
 
-  SetInvalid();
+    SetInvalid();
+  }
 }
 
 void CGUILabelControl::SetWidthControl(float minWidth, bool bScroll)
@@ -172,7 +176,10 @@ void CGUILabelControl::SetAlignment(uint32_t align)
 float CGUILabelControl::GetWidth() const
 {
   if (m_minWidth && m_minWidth != m_width)
-    return CLAMP(m_label.GetTextWidth(), m_minWidth, m_width);
+  {
+    float maxWidth = m_width ? m_width : m_label.GetTextWidth();
+    return CLAMP(m_label.GetTextWidth(), m_minWidth, maxWidth);
+  }
   return m_width;
 }
 

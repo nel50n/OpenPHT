@@ -33,6 +33,7 @@
 #include "IMsgTargetCallback.h"
 #include "DirtyRegionTracker.h"
 #include "utils/GlobalsHandling.h"
+#include "guilib/Key.h"
 #include <list>
 
 class CGUIDialog;
@@ -66,12 +67,13 @@ public:
   void ActivateWindow(int iWindowID, const std::vector<CStdString>& params, bool swappingWindows = false);
   void PreviousWindow();
 
-  void CloseDialogs(bool forceClose = false);
+  void CloseDialogs(bool forceClose = false) const;
+  void CloseInternalModalDialogs(bool forceClose = false) const;
 
   // OnAction() runs through our active dialogs and windows and sends the message
   // off to the callbacks (application, python, playlist player) and to the
   // currently focused window(s).  Returns true only if the message is handled.
-  bool OnAction(const CAction &action);
+  bool OnAction(const CAction &action) const;
 
   /*! \brief Process active controls allowing them to animate before rendering.
    */
@@ -130,8 +132,11 @@ public:
   void SetCallback(IWindowManagerCallback& callback);
   void DeInitialize();
 
-  void RouteToWindow(CGUIWindow* dialog);
-  void AddModeless(CGUIWindow* dialog);
+  /*! \brief Register a dialog as active dialog
+   *
+   * \param dialog The dialog to register as active dialog
+   */
+  void RegisterDialog(CGUIWindow* dialog);
   void RemoveDialog(int id);
   int GetTopMostModalDialogID(bool ignoreClosing = false) const;
 
@@ -153,12 +158,22 @@ public:
   bool IsWindowTopMost(const CStdString &xmlFile) const;
   bool IsOverlayAllowed() const;
   void ShowOverlay(CGUIWindow::OVERLAY_STATE state);
+  /*! \brief Checks if the given window is an addon window.
+   *
+   * \return true if the given window is an addon window, otherwise false.
+   */
+  bool IsAddonWindow(int id) const { return (id >= WINDOW_ADDON_START && id <= WINDOW_ADDON_END); };
+  /*! \brief Checks if the given window is a python window.
+   *
+   * \return true if the given window is a python window, otherwise false.
+   */
+  bool IsPythonWindow(int id) const { return (id >= WINDOW_PYTHON_START && id <= WINDOW_PYTHON_END); };
   void GetActiveModelessWindows(std::vector<int> &ids);
 #ifdef _DEBUG
   void DumpTextureUse();
 #endif
 private:
-  void RenderPass();
+  void RenderPass() const;
 
   void LoadNotOnDemandWindows();
   void UnloadNotOnDemandWindows();
@@ -198,6 +213,31 @@ private:
 private :
   bool m_restrictedAccessMode;
   /* END PLEX */
+
+  class CGUIWindowManagerIdCache
+  {
+  public:
+    CGUIWindowManagerIdCache(void) : m_id(WINDOW_INVALID), m_window(NULL) {}
+    CGUIWindow *Get(int id)
+    {
+      if (id == m_id)
+        return m_window;
+      return NULL;
+    }
+    void Set(int id, CGUIWindow *window)
+    {
+      m_id = id;
+      m_window = window;
+    }
+    void Invalidate(void)
+    {
+      m_id = WINDOW_INVALID;
+    }
+  private:
+    int m_id;
+    CGUIWindow *m_window;
+  };
+  mutable CGUIWindowManagerIdCache m_idCache;
 };
 
 /*!

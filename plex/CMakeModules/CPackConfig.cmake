@@ -38,11 +38,15 @@ set(CPACK_RESOURCE_FILE_LICENSE ${root}/LICENSE.GPL)
 set(CPACK_NSIS_EXECUTABLES_DIRECTORY ".")
 
 set(CPACK_NSIS_EXTRA_INSTALL_COMMANDS
-  "IfFileExists \\\"$INSTDIR\\\\Dependencies\\\\vcredist_2013_x86.exe\\\" 0 +2
+  "SimpleFC::AdvAddRule \\\"OpenPHT\\\" \\\"OpenPHT\\\" 256 1 1 2147483647 1 \\\"$INSTDIR\\\\OpenPHT.exe\\\" \\\"\\\" \\\"\\\" \\\"\\\" \\\"\\\" \\\"\\\" \\\"\\\" \\\"\\\"
+   IfFileExists \\\"$INSTDIR\\\\Dependencies\\\\vcredist_2013_x86.exe\\\" 0 +2
    ExecWait \\\"$INSTDIR\\\\Dependencies\\\\vcredist_2013_x86.exe /q /norestart\\\"
    IfFileExists \\\"$INSTDIR\\\\Dependencies\\\\dxsetup\\\\dxsetup.exe\\\" 0 +2
    ExecWait \\\"$INSTDIR\\\\Dependencies\\\\dxsetup\\\\dxsetup.exe /silent\\\"
    RMDir /r \\\"$INSTDIR\\\\Dependencies\\\"")
+
+set(CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS
+  "SimpleFC::AdvRemoveRule \\\"OpenPHT\\\"")
 
 if(TARGET_OSX)
   set(CPACK_GENERATOR "ZIP")
@@ -70,20 +74,9 @@ if(TARGET_WIN32)
   set(MAIN_BINARY "-m \"OpenPHT.exe\"")
 endif(TARGET_WIN32)
 
-if(PYTHONINTERP_FOUND)
-  add_custom_command(
-    OUTPUT OpenPHT-${PLEX_VERSION_STRING}-${CPACK_SYSTEM_NAME}-manifest.xml
-    COMMAND ${PYTHON_EXECUTABLE} ${plexdir}/scripts/create_update.py -p ${CPACK_SYSTEM_NAME} ${MAIN_BINARY} -v ${PLEX_VERSION_STRING} -i ${ZIPFILE} -o ${CMAKE_BINARY_DIR}
-    DEPENDS package
-  )
-
-  add_custom_target(update_manifest DEPENDS OpenPHT-${PLEX_VERSION_STRING}-${CPACK_SYSTEM_NAME}-manifest.xml)
-
-  set(PKG update_manifest)
-endif(PYTHONINTERP_FOUND)
-
+set(PKG package)
 if(TARGET_WIN32)
-  add_custom_target(signed_package ${plexdir}/scripts/WindowsSign.cmd ${CPACK_PACKAGE_DIRECTORY}/${CPACK_PACKAGE_FILE_NAME}.exe DEPENDS package update_manifest)
+  add_custom_target(signed_package ${plexdir}/scripts/WindowsSign.cmd ${CPACK_PACKAGE_DIRECTORY}/${CPACK_PACKAGE_FILE_NAME}.exe DEPENDS package)
   set(PKG signed_package)
 endif(TARGET_WIN32)
 add_custom_target(release_package DEPENDS symbols ${PKG})

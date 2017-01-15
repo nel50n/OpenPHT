@@ -631,7 +631,7 @@ bool CApplication::Create()
   CStdString executable = CUtil::ResolveExecutablePath();
   CLog::Log(LOGNOTICE, "The executable running is: %s", executable.c_str());
   CLog::Log(LOGNOTICE, "Local hostname: %s", m_network->GetHostName().c_str());
-  CLog::Log(LOGNOTICE, "Log File is located: %sxbmc.log", g_settings.m_logFolder.c_str());
+  CLog::Log(LOGNOTICE, "Log File is located: %s%s.log", g_settings.m_logFolder.c_str(), PLEX_TARGET_NAME);
   CLog::Log(LOGNOTICE, "-----------------------------------------------------------------------");
 
   CStdString strExecutablePath;
@@ -1311,6 +1311,20 @@ bool CApplication::Initialize()
     /* PLEX select plex skin if it's the first time you run it with mediastream */
     if (g_guiSettings.GetString("lookandfeel.skin") != DEFAULT_SKIN && !g_guiSettings.GetBool("system.firstrunwizard"))
       g_guiSettings.SetString("lookandfeel.skin", DEFAULT_SKIN);
+
+    // Make sure we set esport back to default on existing installations
+    if (g_guiSettings.GetString("services.esport") == "9778")
+      g_guiSettings.SetString("services.esport", "9777");
+
+    // Migrate disable preplay option
+    if (g_guiSettings.GetBool("myplex.disablepreplay"))
+    {
+      g_guiSettings.SetBool("myplex.disablepreplaymovie", true);
+      g_guiSettings.SetBool("myplex.disablepreplayepisode", true);
+      g_guiSettings.SetBool("myplex.disablepreplayclip", true);
+      g_guiSettings.SetBool("myplex.disablepreplay", false);
+    }
+
     /* END PLEX */
 
     if (!LoadSkin(g_guiSettings.GetString("lookandfeel.skin")) && !LoadSkin(DEFAULT_SKIN))
@@ -3151,8 +3165,8 @@ bool CApplication::ProcessMouse()
     return false;
 
   // Get the mouse command ID
-  uint32_t mousecommand = g_Mouse.GetAction();
-  if (mousecommand == ACTION_NOOP)
+  uint32_t mousekey = g_Mouse.GetKey();
+  if (mousekey == KEY_MOUSE_NOOP)
     return true;
 
   // Reset the screensaver and idle timers
@@ -3163,14 +3177,14 @@ bool CApplication::ProcessMouse()
 
   // Retrieve the corresponding action
   int iWin = GetActiveWindowID();
-  CKey key(mousecommand | KEY_MOUSE, (unsigned int) 0);
+  CKey key(mousekey, (unsigned int) 0);
   CAction mouseaction = CButtonTranslator::GetInstance().GetAction(iWin, key);
 
   // If we couldn't find an action return false to indicate we have not
   // handled this mouse action
   if (!mouseaction.GetID())
   {
-    CLog::Log(LOGDEBUG, "%s: unknown mouse command %d", __FUNCTION__, mousecommand);
+    CLog::Log(LOGDEBUG, "%s: unknown mouse command %d", __FUNCTION__, mousekey);
     return false;
   }
 
@@ -5074,6 +5088,14 @@ bool CApplication::OnMessage(CGUIMessage& message)
       if (url.GetProtocol() == "plugin")
         XFILE::CPluginDirectory::GetPluginResult(url.Get(), file);
 
+      if (file.IsPlexMediaServer())
+      {
+        CFileItem newItem;
+        CPlexMediaDecisionEngine plexMDE;
+        if (plexMDE.resolveItem(file, newItem))
+          file.SetPath(newItem.GetPath());
+      }
+
       // Don't queue if next media type is different from current one
       if ((!file.IsVideo() && m_pPlayer->IsPlayingVideo())
           || ((!file.IsAudio() || file.IsVideo()) && m_pPlayer->IsPlayingAudio()))
@@ -5234,19 +5256,23 @@ bool CApplication::OnMessage(CGUIMessage& message)
     break;
   case GUI_MSG_EXECUTE:
     if (message.GetNumStringParams())
-      return ExecuteXBMCAction(message.GetStringParam());
+      return ExecuteXBMCAction(message.GetStringParam(), message.GetItem());
     break;
   }
   return false;
 }
 
-bool CApplication::ExecuteXBMCAction(std::string actionStr)
+bool CApplication::ExecuteXBMCAction(std::string actionStr, const CGUIListItemPtr &item /* = NULL */)
 {
   // see if it is a user set string
-  CLog::Log(LOGDEBUG,"%s : Translating %s", __FUNCTION__, actionStr.c_str());
-  CGUIInfoLabel info(actionStr, "");
-  actionStr = info.GetLabel(0);
-  CLog::Log(LOGDEBUG,"%s : To %s", __FUNCTION__, actionStr.c_str());
+
+  //We don't know if there is unsecure information in this yet, so we
+  //postpone any logging
+  const std::string in_actionStr(actionStr);
+  if (item)
+    actionStr = CGUIInfoLabel::GetItemLabel(actionStr, item.get());
+  else
+    actionStr = CGUIInfoLabel::GetLabel(actionStr);
 
   // user has asked for something to be executed
   if (CBuiltins::HasCommand(actionStr))
@@ -5389,8 +5415,7 @@ void CApplication::ProcessSlow()
   }
 #endif
 
-  if (!m_pPlayer->IsPlayingVideo())
-    g_largeTextureManager.CleanupUnusedImages();
+  g_largeTextureManager.CleanupUnusedImages();
 
   g_TextureManager.FreeUnusedTextures(5000);
 
